@@ -1,0 +1,14 @@
+# models are regenerated with scripts/export_models.sh
+models/
+*.pt
+*.onnx
+*.ncnn.bin
+*.ncnn.param
+*_ncnn/
+.export-env/
+# runtime data from the board
+data/
+*.log
+__pycache__/
+*.pyc
+.DS_Store

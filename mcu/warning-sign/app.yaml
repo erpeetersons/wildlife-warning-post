@@ -1,0 +1,3 @@
+name: Wildlife Warning Sign
+description: LED matrix road sign driven by the wildwatch pipeline over the Bridge (set_state).
+icon: ⚠️

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wildlife Warning Post</title>
+<style>
+:root{--bg:#0b1118;--panel:#111a24;--panel2:#16212d;--line:#243344;--text:#e6ecf2;--muted:#8b9aac;
+  --radar:#46cfc3;--ir:#c27bff;--sign:#f5c443;--red:#d7352d;--person:#78dc78;--caution:#ff9d5c;--ignore:#71839a;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 var(--sans)}
+.wrap{display:grid;gap:12px;padding:14px;max-width:2000px;margin:0 auto}
+.screens{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.screen{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.video{position:relative;aspect-ratio:16/9;background:#000;overflow:hidden}
+.video img,.video canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.idle{position:absolute;inset:auto 0 0 0;padding:6px 10px;font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:linear-gradient(transparent,rgba(5,8,12,.85))}
+.video.stale img{opacity:.45}
+.video img:not([src]){visibility:hidden}
+.pip{position:absolute;right:10px;bottom:10px;width:26%;min-width:150px;aspect-ratio:5/3;border:2px solid var(--ir);border-radius:6px;overflow:hidden;background:#000;box-shadow:0 4px 18px rgba(0,0,0,.6);z-index:2;pointer-events:none}
+.pip img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.pip span{position:absolute;left:0;top:0;padding:3px 6px;font:600 10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#0b1118;background:var(--ir)}
+.pip.stale{border-color:var(--line)} .pip.stale img{opacity:.4} .pip.stale span{background:var(--line);color:var(--muted)}
+.video canvas{cursor:default}
+.video.edit canvas{cursor:crosshair}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:500 13px/1 var(--sans);color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 11px;cursor:pointer}
+button:hover{border-color:#3b5570}
+button[aria-pressed="true"]{border-color:var(--ir);color:var(--ir)}
+.hint{color:var(--muted);font-size:12px}
+.simbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.simbar .grp{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.simbar .lbl{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.simbar button{padding:6px 9px;font-size:12px}
+.simbar button[aria-pressed="true"]{border-color:var(--radar);color:var(--radar);background:#10272a}
+.simbar input[type=range]{width:140px;accent-color:var(--ir)}
+.simbar output{font:500 12px/1 var(--mono);min-width:3.5em}
+.hwrow{display:flex;justify-content:space-between;gap:8px;padding:3px 12px;font-size:12.5px}
+.hwrow span:last-child{font-family:var(--mono)}
+.on-c{color:var(--radar)} .on-ir{color:var(--ir)} .on-w{color:var(--sign)} .off-c{color:var(--muted)}
+.pbar{display:flex;height:8px;margin:8px 12px 4px;border-radius:99px;overflow:hidden;background:var(--panel2)}
+.pbar i{display:block;height:100%}
+.chips{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+.chip .k{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip .v{font:500 12px/1.3 var(--mono);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip.on{border-color:var(--radar)} .chip.on .k{color:var(--radar)}
+.chip.ir{border-color:var(--ir)} .chip.ir .k{color:var(--ir)}
+.chip.warn{border-color:var(--sign);background:#2a230e} .chip.warn .k{color:var(--sign)}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.ph{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--line);font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.verdict{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:12px}
+.verdict h3{margin:0;font:700 19px/1.15 var(--sans)}
+.verdict p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+dl{margin:0;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}
+dt{color:var(--muted)} dd{margin:0;text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font:12px/1.3 var(--mono)}
+td,th{padding:4px 12px;text-align:left} th{color:var(--muted);font-weight:500}
+.s-animal{color:var(--sign)} .s-person{color:var(--person)} .s-unknown{color:var(--caution)} .s-candidate,.s-classifying{color:var(--radar)}
+.s-radar,.s-radar-only{color:var(--caution)}
+.s-fast,.s-zone,.s-vehicle,.s-new,.s-jitter{color:var(--ignore)}
+.events{display:grid;gap:8px;padding:10px 12px}
+.ev{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center;font-size:12.5px}
+.ev img{width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:5px;background:#000}
+.ev b{display:block}
+.ev span{color:var(--muted);font-family:var(--mono);font-size:11.5px}
+.empty{color:var(--muted);font-size:12.5px;padding:10px 12px}
+@media (max-width:900px){.screens{grid-template-columns:minmax(0,1fr)}.chips{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style></head><body>
+<div class="wrap">
+  <div class="screens">
+    <section class="screen">
+      <div class="ph"><span>Camera · detections</span><span id="camlbl">1920×1080</span></div>
+      <div class="video" id="video">
+        <img id="stream" src="/stream" alt="live camera with detections">
+        <canvas id="overlay"></canvas>
+        <div class="pip stale" id="pip" hidden><img id="pipimg" alt="what the model sees"><span id="piplbl">YOLO sees</span></div>
+      </div>
+    </section>
+    <section class="screen">
+      <div class="ph"><span id="yololbl">YOLO input</span><span id="zoomv">–</span></div>
+      <div class="video stale" id="cropbox">
+        <img id="crop" alt="the exact image the classifier receives">
+        <div class="idle" id="cropidle">YOLO idle · waiting for a target</div>
+      </div>
+    </section>
+  </div>
+  <div class="controls" style="display:grid;gap:10px">
+    <div class="toolbar">
+      <button id="mode" type="button" aria-pressed="true">Mode: full frame</button>
+      <button id="patrol" type="button" aria-pressed="true">Patrol scan: on</button>
+      <button id="debug" type="button" aria-pressed="false">Debug overlays: off</button>
+      <button id="draw" type="button" aria-pressed="false">Draw exclusion zone</button>
+      <button id="clear" type="button">Clear zones</button>
+      <button id="vib" type="button">Test alert</button>
+      <span class="hint" id="hint">Motion inside an exclusion zone is ignored (e.g. bushes, a TV, a window).</span>
+    </div>
+    <div class="simbar" id="simbar">
+      <div class="grp"><span class="lbl">Sim radar target</span>
+        <button data-t="off" title="no radar: camera-only mode">Off</button><button data-t="empty" title="radar on, nothing on the road">Empty road</button><button data-t="moose">Moose</button><button data-t="person">Person</button><button data-t="car">Car</button><button data-t="rain">Rain</button></div>
+      <div class="grp"><span class="lbl">Environment</span>
+        <button data-e="day">Day</button><button data-e="night">Night</button><button data-e="fog">Fog</button></div>
+      <div class="grp"><span class="lbl">Bearing</span>
+        <input type="range" id="angle" min="-35" max="35" step="1" value="0" aria-label="Simulated radar bearing in degrees"><output id="anglev">0°</output></div>
+    </div>
+    <div class="chips">
+      <div class="chip" id="c-motion"><div class="k">1 · Motion</div><div class="v">–</div></div>
+      <div class="chip" id="c-track"><div class="k">2 · Track</div><div class="v">–</div></div>
+      <div class="chip" id="c-filter"><div class="k">3 · Filter</div><div class="v">–</div></div>
+      <div class="chip" id="c-zoom"><div class="k">4 · Zoom</div><div class="v">–</div></div>
+      <div class="chip" id="c-cls"><div class="k">5 · Classify</div><div class="v">–</div></div>
+      <div class="chip" id="c-dec"><div class="k">6 · Decide</div><div class="v">–</div></div>
+    </div>
+  </div>
+  <div class="info">
+    <section class="panel">
+      <div class="ph"><span>Road sign</span><span id="since"></span></div>
+      <div class="verdict">
+        <canvas id="sign" width="120" height="106" style="width:92px;height:81px"></canvas>
+        <div><h3 id="vt">Monitoring</h3><p id="vs">Waiting for motion</p></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ph"><span>Simulated hardware</span><span id="hwmode">–</span></div>
+      <div style="padding:6px 0 8px">
+        <div class="hwrow"><span>Radar</span><span id="h-radar">–</span></div>
+        <div class="hwrow"><span>PIR</span><span id="h-pir">–</span></div>
+        <div class="hwrow"><span>IR light</span><span id="h-ir">–</span></div>
+        <div class="hwrow"><span>Camera + YOLO</span><span id="h-cam">–</span></div>
+        <div class="hwrow"><span>Linux side</span><span id="h-linux">–</span></div>
+        <div class="pbar" id="pbar" title="power split"></div>
+        <div class="hwrow"><span>Power now</span><span id="h-pw">–</span></div>
+        <div class="hwrow"><span>Average since reset</span><span id="h-avg">–</span></div>
+        <div class="hwrow"><span>Battery at this average</span><span id="h-bat">–</span></div>
+        <div class="hwrow"><span class="off-c" style="font-size:11px">Modelled power, not measured</span><button id="ereset" type="button" style="padding:3px 7px;font-size:11px">Reset average</button></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="ph"><span>Radar</span><span id="rstat">no radar</span></div>
+      <canvas id="radar" style="display:block;width:100%;height:150px"></canvas>
+    </section>
+    <section class="panel">
+      <div class="ph"><span>Tracks</span><span id="ntr">0</span></div>
+      <table><thead><tr><th>#</th><th>status</th><th>age</th><th>speed</th></tr></thead><tbody id="tracks"></tbody></table>
+    </section>
+    <section class="panel">
+      <div class="ph"><span>Performance</span><span id="up"></span></div>
+      <dl>
+        <dt>Loop</dt><dd id="fps">–</dd>
+        <dt>Motion check</dt><dd id="mms">–</dd>
+        <dt>YOLO per crop</dt><dd id="yms">–</dd>
+        <dt>YOLO runs / min</dt><dd id="ypm">–</dd>
+        <dt>Ignored / min</dt><dd id="ign">–</dd>
+        <dt>CPU · temp</dt><dd id="cpu">–</dd>
+        <dt>Memory</dt><dd id="mem">–</dd>
+        <dt>Camera · model</dt><dd id="cfg">–</dd>
+        <dt>LED sign (MCU)</dt><dd id="led">–</dd>
+        <dt>Alert module</dt><dd id="vibn">–</dd>
+      </dl>
+    </section>
+    <section class="panel">
+      <div class="ph"><span>Events</span><span>snapshots saved on board</span></div>
+      <div class="events" id="events"><div class="empty">No warnings yet.</div></div>
+    </section>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const C = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- sign ----------
+function poly(ctx, pts, X, Y) { ctx.beginPath(); pts.forEach(([a, b], i) => i ? ctx.lineTo(X(a), Y(b)) : ctx.moveTo(X(a), Y(b))); ctx.closePath(); ctx.fill(); }
+function moose(ctx, bx, by, s) {
+  const X = m => bx + m * s, Y = m => by - m * s; ctx.fillStyle = '#111';
+  [[-.95, 0], [-.72, 0], [.72, 0], [.95, 0]].forEach(([lx]) => poly(ctx, [[lx - .08, 1.25], [lx + .08, 1.25], [lx + .06, 0], [lx - .06, 0]], X, Y));
+  ctx.beginPath(); ctx.ellipse(X(0), Y(1.45), 1.2 * s, .5 * s, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(X(.5), Y(1.82), .52 * s, .3 * s, 0, 0, 7); ctx.fill();
+  poly(ctx, [[.75, 1.65], [1, 2], [1.25, 2.02], [1.85, 1.72], [1.9, 1.5], [1.62, 1.45], [1.3, 1.56], [1.1, 1.3]], X, Y);
+  poly(ctx, [[1, 2], [.7, 2.4], [.86, 2.37], [.92, 2.55], [1.04, 2.42], [1.14, 2.58], [1.25, 2.4], [1.22, 2.04]], X, Y);
+}
+function person(ctx, bx, by, s) {
+  const X = m => bx + m * s, Y = m => by - m * s; ctx.fillStyle = '#111'; ctx.strokeStyle = '#111'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(X(0), Y(1.64), .13 * s, 0, 7); ctx.fill();
+  poly(ctx, [[-.16, 1.48], [.16, 1.48], [.13, .88], [-.13, .88]], X, Y);
+  ctx.lineWidth = .13 * s; [[.2], [-.2]].forEach(([f]) => { ctx.beginPath(); ctx.moveTo(X(0), Y(.9)); ctx.lineTo(X(f), Y(0)); ctx.stroke(); });
+}
+let signKey = '';
+function sign(kind) {
+  if (kind === signKey) return; signKey = kind;
+  const cv = $('#sign'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!['animal', 'person', 'unknown'].includes(kind)) {
+    ctx.strokeStyle = kind === 'checking' ? C('--radar') : C('--ignore'); ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 38, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, kind === 'checking' ? 14 : 5, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+    return;
+  }
+  ctx.fillStyle = kind === 'unknown' ? '#ffb27a' : C('--sign'); ctx.strokeStyle = C('--red'); ctx.lineWidth = 9; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(W / 2, 5); ctx.lineTo(W - 5, H - 6); ctx.lineTo(5, H - 6); ctx.closePath(); ctx.stroke(); ctx.fill();
+  if (kind === 'animal') moose(ctx, W / 2 - 10, H - 22, 19);
+  else if (kind === 'person') person(ctx, W / 2, H - 20, 30);
+  else { ctx.fillStyle = '#111'; ctx.font = '700 52px ' + C('--sans'); ctx.textAlign = 'center'; ctx.fillText('!', W / 2, H - 22); }
+}
+
+// ---------- stats ----------
+const DEC = {
+  animal: ['Animal ahead', 'Camera confirmed a large animal'],
+  person: ['Pedestrian ahead', 'Camera confirmed a person'],
+  unknown: ['Caution: object', 'Persistent mover, no confident class'],
+  checking: ['Checking', 'Persistent mover found · zooming + classifying'],
+  motion: ['Monitoring', 'Motion seen · not persistent yet'],
+  idle: ['Monitoring', 'No motion · YOLO idle'],
+};
+function setChip(id, cls, v) { const el = $(id); el.className = 'chip ' + cls; el.querySelector('.v').textContent = v; }
+let lastCrop = 0;
+async function tick() {
+  let d; try { d = await (await fetch('/stats', { cache: 'no-store' })).json(); } catch (e) { return; }
+  const [t, s] = DEC[d.decision] || DEC.idle;
+  $('#vt').textContent = t;
+  $('#vs').textContent = d.label === 'radar only' ? 'Radar target approaching · camera cannot confirm (fail-safe)'
+    : (d.label && ['animal', 'person'].includes(d.decision)) ? `${s}: ${d.label} ${d.conf.toFixed(2)}` : s;
+  $('#since').textContent = d.since + ' s';
+  sign(d.decision);
+  const tr = d.tracks, cand = tr.filter(x => x.status === 'candidate' || x.status === 'classifying').length;
+  const ignN = Object.values(d.ignored).reduce((a, b) => a + b, 0);
+  setChip('#c-motion', d.motion_pct > 0 ? 'on' : '', d.lighting ? 'lighting change' : `${d.motion_pct}% of frame`);
+  setChip('#c-track', tr.length ? 'on' : '', `${tr.length} track${tr.length === 1 ? '' : 's'}`);
+  setChip('#c-filter', cand ? 'on' : '', cand ? `${cand} passed` : `${ignN} ignored/min`);
+  setChip('#c-zoom', d.busy ? 'ir' : '', d.busy ? `${d.zoom}× crop` : 'idle');
+  setChip('#c-cls', d.busy ? 'ir' : '', d.busy ? 'running…' : `${d.yolo_per_min}/min`);
+  setChip('#c-dec', ['animal', 'person', 'unknown'].includes(d.decision) ? 'warn' : '', t);
+  const src = d.crop_src === 'F' ? 'full frame' : d.crop_src === 'P' ? 'patrol scan' : d.crop_src && d.crop_src.startsWith('R') ? 'radar target' : 'motion target';
+  const isFull = d.mode === 'full';
+  $('#mode').textContent = isFull ? `Mode: full frame ${d.full_model.replace('x', '×')}` : 'Mode: motion + zoom';
+  $('#mode').setAttribute('aria-pressed', isFull);
+  $('#patrol').hidden = isFull;
+  $('#zoomv').textContent = `${src} · zoom ${d.zoom}×` + (d.busy ? ' · running' : '');
+  $('#patrol').setAttribute('aria-pressed', d.patrol); $('#patrol').textContent = 'Patrol scan: ' + (d.patrol ? 'on' : 'off');
+  if (d.crop_ts && d.crop_ts !== lastCrop) { lastCrop = d.crop_ts; $('#crop').src = $('#pipimg').src = '/crop.jpg?t=' + d.crop_ts; $('#pip').hidden = false; }
+  const age = d.crop_ts ? Date.now() / 1000 - d.crop_ts : 1e9;
+  const fresh = d.busy || age < 3;
+  $('#cropbox').classList.toggle('stale', !fresh);
+  $('#cropidle').hidden = fresh;
+  $('#pip').classList.toggle('stale', !fresh);
+  $('#piplbl').textContent = fresh ? `YOLO sees · ${d.zoom}×` : `YOLO idle · ${Math.round(age)} s`;
+  $('#cropidle').textContent = d.crop_ts ? `YOLO idle · last input ${Math.round(age)} s ago` : 'YOLO idle · waiting for a target';
+  $('#camlbl').textContent = d.camera + (d.debug ? ' · debug' : '');
+  $('#debug').setAttribute('aria-pressed', d.debug); $('#debug').textContent = 'Debug overlays: ' + (d.debug ? 'on' : 'off');
+  $('#ntr').textContent = tr.length;
+  $('#tracks').innerHTML = tr.length ? tr.map(x => `<tr><td>${x.id}</td><td class="s-${x.status}">${x.status}${x.label && ['animal', 'person'].includes(x.status) ? ' · ' + x.label : ''}</td><td>${x.age}s</td><td>${x.speed}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="color:var(--muted)">no moving objects</td></tr>';
+  $('#fps').textContent = d.loop_fps + ' fps';
+  $('#mms').textContent = d.motion_ms + ' ms';
+  $('#yms').textContent = d.yolo_ms ? d.yolo_ms + ' ms' : '–';
+  $('#ypm').textContent = d.yolo_per_min;
+  $('#ign').textContent = Object.entries(d.ignored).map(([k, v]) => `${k} ${v}`).join(' · ') || '0';
+  $('#cpu').textContent = `${d.system.cpu_pct}% · ${d.system.temp_c} °C`;
+  $('#mem').textContent = `${d.system.mem_used_mb} / ${d.system.mem_total_mb} MB`;
+  $('#cfg').textContent = `${d.camera} · ${d.model.split(' ')[1]}`;
+  $('#yololbl').textContent = `YOLO input · ${(d.crop_src === 'F' ? d.full_model : d.model.split(' ')[1]).replace('x', '×')}`;
+  const al = d.led.vibro;
+  const found = al == null ? 'checking…' : [al & 1 ? 'vibro' : '', al & 2 ? 'buzzer' : ''].filter(Boolean).join(' + ') || 'no module found';
+  $('#vibn').textContent = `${found} · ${d.led.vibrations} alerts`;
+  $('#led').textContent = d.led.ok ? `connected · state ${d.led.state}` : (d.led.err ? 'offline' : 'connecting…');
+  const u = d.uptime_s; $('#up').textContent = `up ${Math.floor(u / 60)}m ${u % 60}s`;
+  zones = d.zones; drawOverlay(); drawRadar(d.radar); drawHw(d);
+}
+async function loadEvents() {
+  let ev; try { ev = await (await fetch('/events', { cache: 'no-store' })).json(); } catch (e) { return; }
+  if (!ev.length) return;
+  $('#events').innerHTML = ev.slice(0, 12).map(e => `<div class="ev"><a href="/snap/${e.snap}" target="_blank"><img loading="lazy" src="/snap/${e.snap}" alt=""></a><div><b class="s-${e.kind}">${e.kind === 'unknown' ? 'Caution: unknown object' : e.kind === 'radar' ? 'Caution: radar-only target' : e.label}</b><span>${e.time} · track #${e.track}${e.conf ? ' · ' + e.conf.toFixed(2) : ''}</span></div></div>`).join('');
+}
+
+// ---------- simulation controls + hardware panel ----------
+const PCOL = { Radar: '#46cfc3', Linux: '#5b7fa6', Camera: '#8b9aac', YOLO: '#c27bff', 'IR light': '#e06bd0', 'LED sign': '#f5c443', MCU: '#3a4a5c' };
+let simState = null, angleDrag = false;
+function fmtDays(d) { return d >= 365 ? (d / 365).toFixed(1) + ' years' : d >= 60 ? Math.round(d / 30) + ' months' : d >= 2 ? Math.round(d) + ' days' : Math.round(d * 24) + ' h'; }
+function drawHw(d) {
+  const h = d.hw, s = d.sim; simState = s;
+  document.querySelectorAll('#simbar [data-t]').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === s.target));
+  document.querySelectorAll('#simbar [data-e]').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === s.env));
+  if (!angleDrag) { $('#angle').value = s.angle; $('#anglev').textContent = s.angle + '°'; }
+  $('#hwmode').textContent = h.mode === 'radar' ? 'radar mode' : 'camera-only mode';
+  const set = (id, txt, cls) => { const el = $(id); el.textContent = txt; el.className = cls; };
+  set('#h-radar', h.mode === 'radar' ? `on · ${d.radar.targets.length} target${d.radar.targets.length === 1 ? '' : 's'}` : 'no data', h.mode === 'radar' ? 'on-c' : 'off-c');
+  set('#h-pir', h.pir ? 'warm body' : 'quiet', h.pir ? 'on-w' : 'off-c');
+  set('#h-ir', h.ir ? 'ON · 30 W' : (s.env === 'night' ? 'off (waiting for radar)' : 'off'), h.ir ? 'on-ir' : 'off-c');
+  set('#h-cam', h.mode === 'camera' ? 'always on (motion)' : h.awake ? (d.busy ? 'awake · YOLO running' : 'awake') : 'asleep', h.awake || h.mode === 'camera' ? 'on-c' : 'off-c');
+  set('#h-linux', h.mode === 'camera' ? 'active' : h.awake ? 'awake' : 'suspended', h.awake || h.mode === 'camera' ? 'on-c' : 'off-c');
+  $('#h-pw').textContent = h.power_w.toFixed(2) + ' W';
+  $('#h-avg').textContent = h.avg_w.toFixed(2) + ' W · ' + (h.avg_w * 24).toFixed(0) + ' Wh/day';
+  $('#h-bat').textContent = h.avg_w > 0 ? Object.entries(h.batteries).map(([k, wh]) => `${k} ${fmtDays(wh / (h.avg_w * 24))}`).join(' · ') : '–';
+  $('#pbar').innerHTML = Object.entries(h.parts).map(([k, v]) => `<i title="${k} ${v} W" style="width:${100 * v / h.power_w}%;background:${PCOL[k] || '#666'}"></i>`).join('');
+}
+async function postSim(body) {
+  try { await fetch('/sim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch (e) { }
+  tick();
+}
+document.querySelectorAll('#simbar [data-t]').forEach(b => b.addEventListener('click', () => postSim({ target: b.dataset.t })));
+document.querySelectorAll('#simbar [data-e]').forEach(b => b.addEventListener('click', () => postSim({ env: b.dataset.e })));
+$('#angle').addEventListener('input', e => { angleDrag = true; $('#anglev').textContent = e.target.value + '°'; });
+$('#angle').addEventListener('change', e => { angleDrag = false; postSim({ angle: +e.target.value }); });
+$('#ereset').addEventListener('click', () => postSim({ reset_energy: true }));
+
+// ---------- radar plot ----------
+function drawRadar(r) {
+  $('#rstat').textContent = r.connected ? `${r.targets.length} target${r.targets.length === 1 ? '' : 's'}` : 'no radar data';
+  const cv = $('#radar'), dpr = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0c141c'; ctx.fillRect(0, 0, W, H);
+  const ox = W / 2, oy = H - 8, R = H - 18, half = 28 * Math.PI / 180, max = 140;
+  ctx.strokeStyle = 'rgba(70,207,195,.35)'; ctx.fillStyle = 'rgba(70,207,195,.06)';
+  ctx.beginPath(); ctx.moveTo(ox, oy); ctx.arc(ox, oy, R, -Math.PI / 2 - half, -Math.PI / 2 + half); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.font = '10px ' + C('--mono'); ctx.fillStyle = C('--muted');
+  [50, 100].forEach(m => { ctx.beginPath(); ctx.arc(ox, oy, R * m / max, -Math.PI / 2 - half, -Math.PI / 2 + half); ctx.stroke(); ctx.fillText(m + ' m', ox + 4, oy - R * m / max + 11); });
+  const col = { vehicle: C('--ignore'), new: C('--muted'), animal: C('--sign'), person: C('--person'), 'radar-only': C('--caution') };
+  r.targets.forEach(t => {
+    const a = -Math.PI / 2 + t.angle * Math.PI / 180, d = R * Math.min(t.range, max) / max;
+    const x = ox + d * Math.cos(a), y = oy + d * Math.sin(a);
+    ctx.fillStyle = col[t.status] || C('--radar');
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+    if (r.targets.length < 6) ctx.fillText(`${t.id} ${t.status}`, Math.min(x + 6, W - 90), y + 3);
+  });
+}
+
+// ---------- exclusion zones ----------
+let zones = [], editing = false, drag = null;
+const video = $('#video'), ov = $('#overlay'), img = $('#stream');
+function imgRect() {
+  const W = ov.clientWidth, H = ov.clientHeight, iw = img.naturalWidth || 16, ih = img.naturalHeight || 9;
+  const s = Math.min(W / iw, H / ih), w = iw * s, h = ih * s;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+function drawOverlay() {
+  const dpr = devicePixelRatio || 1;
+  ov.width = ov.clientWidth * dpr; ov.height = ov.clientHeight * dpr;
+  const ctx = ov.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, ov.clientWidth, ov.clientHeight);
+  if (!editing && !drag) return;
+  const r = imgRect();
+  ctx.strokeStyle = C('--ir'); ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  zones.forEach(([a, b, c, d]) => ctx.strokeRect(r.x + a * r.w, r.y + b * r.h, (c - a) * r.w, (d - b) * r.h));
+  if (drag) { ctx.fillStyle = 'rgba(194,123,255,.2)'; const [a, b, c, d] = norm(drag); ctx.fillRect(r.x + a * r.w, r.y + b * r.h, (c - a) * r.w, (d - b) * r.h); ctx.strokeRect(r.x + a * r.w, r.y + b * r.h, (c - a) * r.w, (d - b) * r.h); }
+}
+function toN(e) { const b = ov.getBoundingClientRect(), r = imgRect(); return [Math.min(Math.max((e.clientX - b.left - r.x) / r.w, 0), 1), Math.min(Math.max((e.clientY - b.top - r.y) / r.h, 0), 1)]; }
+function norm(d) { return [Math.min(d[0], d[2]), Math.min(d[1], d[3]), Math.max(d[0], d[2]), Math.max(d[1], d[3])]; }
+async function saveZones(z) {
+  try { const r = await fetch('/zones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(z) }); zones = await r.json(); } catch (e) { $('#hint').textContent = 'Could not save zones: board unreachable.'; }
+  drawOverlay();
+}
+ov.addEventListener('pointerdown', e => { if (!editing) return; ov.setPointerCapture(e.pointerId); const p = toN(e); drag = [p[0], p[1], p[0], p[1]]; });
+ov.addEventListener('pointermove', e => { if (!drag) return; const p = toN(e); drag[2] = p[0]; drag[3] = p[1]; drawOverlay(); });
+ov.addEventListener('pointerup', () => { if (!drag) return; const z = norm(drag); drag = null; if (z[2] - z[0] > .01 && z[3] - z[1] > .01) saveZones([...zones, z]); else drawOverlay(); });
+$('#draw').addEventListener('click', () => { editing = !editing; $('#draw').setAttribute('aria-pressed', editing); video.classList.toggle('edit', editing); $('#hint').textContent = editing ? 'Drag on the video to draw a zone. Click the button again when done.' : 'Motion inside an exclusion zone is ignored (e.g. bushes, a TV, a window).'; drawOverlay(); });
+$('#clear').addEventListener('click', () => saveZones([]));
+$('#vib').addEventListener('click', async () => { try { await fetch('/vibrate', { method: 'POST' }); $('#hint').textContent = 'Sent a test alert to the Modulino buzzer / vibro.'; } catch (e) { $('#hint').textContent = 'Board unreachable.'; } });
+$('#mode').addEventListener('click', async () => {
+  const toFull = $('#mode').getAttribute('aria-pressed') !== 'true';
+  try { await fetch('/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: toFull ? 'full' : 'motion' }) }); } catch (e) { }
+  tick();
+});
+$('#patrol').addEventListener('click', async () => {
+  const on = $('#patrol').getAttribute('aria-pressed') !== 'true';
+  try { await fetch('/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patrol: on }) }); } catch (e) { }
+  tick();
+});
+$('#debug').addEventListener('click', async () => {
+  const on = $('#debug').getAttribute('aria-pressed') !== 'true';
+  try { await fetch('/view', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ debug: on }) }); } catch (e) { }
+  tick();
+});
+addEventListener('resize', drawOverlay);
+
+tick(); loadEvents();
+setInterval(tick, 400); setInterval(loadEvents, 2500);
+</script>
+</body></html>

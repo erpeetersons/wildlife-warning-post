@@ -1,0 +1,7 @@
+# Python packages for the UNO Q (Debian 13, Python 3.13, aarch64). Versions as tested.
+numpy==2.5.4
+opencv-python-headless==5.0.0
+ncnn==1.0.20261020
+msgpack==1.2.4
+# only needed for board/legacy/person_detect.py --backend onnx
+onnxruntime==1.32.0
