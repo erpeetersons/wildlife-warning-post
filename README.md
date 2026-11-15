@@ -120,6 +120,11 @@ mcu/warning-sign/          Arduino App: STM32 sketch for LED matrix + buzzer/vib
 scripts/
   export_models.sh         export YOLO11n to ncnn at the sizes used (run on a PC)
   install_board.sh         copy everything to the board and install it
+tools/                     development tools (run on the board)
+  bench_backends.py        ncnn GPU vs ncnn CPU vs onnxruntime
+  bench_input_sizes.py     speed of each exported model input size
+  profile_pipeline.py      where one frame's time goes (camera, prep, inference, encode)
+  setup-vnc.sh             optional remote desktop (TigerVNC, Xfce on :1)
 LICENSE                    MIT
 ```
 
@@ -254,6 +259,20 @@ Engineering findings:
 | Small target (person ~40 px tall in 1080p) | missed at 1× and 1.8× zoom; found at 3× (0.28) and 4.5× (0.57) |
 
 The QRB2210 has no NPU, and its Hexagon DSP isn't usable for user models on this board, so all inference runs on the CPU with ncnn.
+
+## Reproducing the benchmarks
+
+The numbers above come from the scripts in `tools/`. `scripts/install_board.sh` copies them to `~/yolo/tools/` on the board. Stop the service first so it doesn't compete for the CPU:
+
+```bash
+sudo systemctl stop wildwatch
+~/yolo-env/bin/python ~/yolo/tools/bench_backends.py      # GPU vs CPU vs onnxruntime (320x320)
+~/yolo-env/bin/python ~/yolo/tools/bench_input_sizes.py   # every yolo11n_<W>x<H>_ncnn in ~/yolo
+~/yolo-env/bin/python ~/yolo/tools/profile_pipeline.py    # time per pipeline stage
+sudo systemctl start wildwatch
+```
+
+`bench_backends.py` and `profile_pipeline.py` use the 320×320 ncnn model and the ONNX model, which `scripts/export_models.sh` also exports. Optional remote desktop: `sudo bash tools/setup-vnc.sh` on the board, then connect a VNC viewer to `<board-ip>:1`.
 
 ## Limitations and next steps
 

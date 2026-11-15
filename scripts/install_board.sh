@@ -10,6 +10,8 @@ cd "$(dirname "$0")/.."
 ssh "$B" 'mkdir -p ~/yolo ~/ArduinoApps'
 scp board/wildwatch.py board/wildwatch.html board/radar_sim.py board/run.sh board/requirements.txt "$B":~/yolo/
 scp -r "$M"/yolo11n_*_ncnn "$B":~/yolo/
+ls "$M"/yolo11n_320.onnx >/dev/null 2>&1 && scp "$M"/yolo11n_320.onnx "$B":~/yolo/
+ssh "$B" 'mkdir -p ~/yolo/tools' && scp tools/* "$B":~/yolo/tools/
 scp -r mcu/warning-sign "$B":~/ArduinoApps/
 scp board/wildwatch.service "$B":/tmp/
 ssh -t "$B" '
